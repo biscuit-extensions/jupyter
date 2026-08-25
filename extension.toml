@@ -1,7 +1,28 @@
 [extension]
 id = "jupyter"
 name = "Jupyter"
-version = "0.1.0"
-description = "Interactive Jupyter notebook runner and cell-based Python execution"
-author = "biscuit-extensions"
+version = "0.2.0"
+description = "Jupyter Notebook (.ipynb) cell viewer, cell execution runner, and output renderer"
+author = "tomlin7"
 icon = "icon.png"
+
+[dependencies]
+python = [
+    "nbformat>=5.9.0",
+    "jupyter_client>=8.6.0",
+    "ipykernel>=6.29.0"
+]
+tools = [
+    "python",
+    "jupyter"
+]
+
+[contributes]
+commands = [
+    { id = "jupyter.run_current_cell", title = "Jupyter: Run Current Cell" },
+    { id = "jupyter.run_all_cells", title = "Jupyter: Run All Cells" },
+    { id = "jupyter.restart_kernel", title = "Jupyter: Restart Kernel" },
+    { id = "jupyter.clear_outputs", title = "Jupyter: Clear Cell Outputs" },
+    { id = "jupyter.export_python", title = "Jupyter: Export to Python Script" },
+    { id = "jupyter.new_notebook", title = "Jupyter: New Notebook" }
+]
