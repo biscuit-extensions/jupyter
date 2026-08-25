@@ -1,0 +1,7 @@
+[extension]
+id = "jupyter"
+name = "Jupyter"
+version = "0.1.0"
+description = "Interactive Jupyter notebook runner and cell-based Python execution"
+author = "biscuit-extensions"
+icon = "icon.png"
