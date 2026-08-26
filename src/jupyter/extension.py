@@ -50,6 +50,7 @@ class KernelSession:
         self.status = "busy"
         self.execution_count += 1
         outputs: list[dict[str, typing.Any]] = []
+        res_val: typing.Any = None
 
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
@@ -121,6 +122,7 @@ class KernelSession:
                 "status": "ok",
                 "execution_count": self.execution_count,
                 "outputs": outputs,
+                "result": res_val,
             }
 
         except Exception as e:
@@ -162,14 +164,23 @@ class Jupyter(Extension):
         self.statusbar_button = None
         self.api.logger.info("Jupyter extension loaded.")
 
-    def parse_cells(self, raw_notebook: str) -> list[dict[str, typing.Any]]:
+    def parse_cells(self, raw_notebook: str | dict) -> list[dict[str, typing.Any]]:
         """Extract simplified cell list for backwards compatibility."""
+        if isinstance(raw_notebook, dict):
+            return raw_notebook.get("cells", [])
         nb = self.parse_notebook_content(raw_notebook)
         return nb.get("cells", [])
 
     def parse_notebook_content(self, content: str) -> dict[str, typing.Any]:
         """Parse raw .ipynb JSON text into compliant notebook structure."""
-        data = json.loads(content)
+        try:
+            data = json.loads(content)
+        except Exception:
+            return {"cells": [], "metadata": {}}
+
+        if not isinstance(data, dict):
+            return {"cells": [], "metadata": {}}
+
         if "cells" not in data:
             data["cells"] = []
         if "metadata" not in data:
@@ -196,11 +207,20 @@ class Jupyter(Extension):
 
         return data
 
-    def parse_notebook(self, filepath: str | Path) -> dict[str, typing.Any]:
-        """Load and parse .ipynb notebook file from disk."""
-        path = Path(filepath)
-        text = path.read_text(encoding="utf-8")
-        return self.parse_notebook_content(text)
+    def parse_notebook(self, filepath: str | Path | dict) -> dict[str, typing.Any]:
+        """Load and parse .ipynb notebook file from disk or JSON string/dict."""
+        if isinstance(filepath, dict):
+            return filepath
+        if isinstance(filepath, (str, Path)):
+            p = Path(filepath)
+            try:
+                if p.is_file():
+                    return self.parse_notebook_content(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        if isinstance(filepath, str):
+            return self.parse_notebook_content(filepath)
+        raise TypeError(f"Expected str, Path, or dict, got {type(filepath)}")
 
     def create_blank_notebook(self, kernel_name: str = "python3") -> dict[str, typing.Any]:
         """Create a compliant empty Jupyter v4 notebook model."""
@@ -253,8 +273,19 @@ class Jupyter(Extension):
         self.update_statusbar()
         return res
 
-    def execute_cell(self, cell: dict[str, typing.Any]) -> dict[str, typing.Any]:
-        """Execute a code cell dictionary, updating its outputs and execution_count."""
+    def execute_cell(self, cell: dict[str, typing.Any] | str) -> dict[str, typing.Any]:
+        """Execute a code cell dictionary or code string, updating its outputs and execution_count."""
+        if isinstance(cell, str):
+            res = self.kernel.execute(cell)
+            self.update_statusbar()
+            return {
+                "cell_type": "code",
+                "source": cell,
+                "execution_count": res.get("execution_count"),
+                "outputs": res.get("outputs", []),
+                "result": res.get("result"),
+            }
+
         if cell.get("cell_type") != "code":
             return cell
 
@@ -265,6 +296,7 @@ class Jupyter(Extension):
         res = self.kernel.execute(source)
         cell["execution_count"] = res.get("execution_count")
         cell["outputs"] = res.get("outputs", [])
+        cell["result"] = res.get("result")
         self.update_statusbar()
         return cell
 
